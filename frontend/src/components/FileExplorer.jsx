@@ -1,10 +1,12 @@
+"use client"
+
 /**
  * FileExplorer Component
  * Displays generated files in a tree-like structure
  * - Shows file icons based on type
  * - Highlights active file
  */
-function FileExplorer({ files, activeFile, onFileSelect }) {
+export default function FileExplorer({ files, activeFile, onFileSelect }) {
     const fileList = Object.keys(files)
 
     /**
@@ -63,5 +65,3 @@ function FileExplorer({ files, activeFile, onFileSelect }) {
         </div>
     )
 }
-
-export default FileExplorer

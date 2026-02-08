@@ -1,3 +1,5 @@
+"use client"
+
 import { useState, useEffect, useRef, useCallback } from 'react'
 
 /**
@@ -7,7 +9,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
  * - Live transcript display
  * - Status indicators
  */
-function VoiceAgent({ status, setStatus, transcript, onTranscriptSubmit }) {
+export default function VoiceAgent({ status, setStatus, transcript, onTranscriptSubmit }) {
     const [isListening, setIsListening] = useState(false)
     const [interimTranscript, setInterimTranscript] = useState('')
     const [finalTranscript, setFinalTranscript] = useState('')
@@ -16,7 +18,9 @@ function VoiceAgent({ status, setStatus, transcript, onTranscriptSubmit }) {
     // Initialize Web Speech API
     useEffect(() => {
         // Check for browser support
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+        const SpeechRecognition = typeof window !== 'undefined'
+            ? window.SpeechRecognition || window.webkitSpeechRecognition
+            : null
 
         if (!SpeechRecognition) {
             console.error('Speech Recognition not supported in this browser')
@@ -169,12 +173,10 @@ function VoiceAgent({ status, setStatus, transcript, onTranscriptSubmit }) {
                 <h4>💡 Tips</h4>
                 <ul>
                     <li>Speak clearly and describe your website idea</li>
-                    <li>Example: "Create a marketing website for my college"</li>
+                    <li>Example: &quot;Create a marketing website for my college&quot;</li>
                     <li>Click the mic again to stop and submit</li>
                 </ul>
             </div>
         </div>
     )
 }
-
-export default VoiceAgent

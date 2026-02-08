@@ -1,3 +1,5 @@
+"use client"
+
 /**
  * CodeEditor Component
  * Displays generated code with:
@@ -5,7 +7,7 @@
  * - Syntax-highlighted code display
  * - "Typing" effect during generation
  */
-function CodeEditor({ filename, content, isGenerating }) {
+export default function CodeEditor({ filename, content, isGenerating }) {
     /**
      * Get file icon based on extension
      */
@@ -96,5 +98,3 @@ function CodeEditor({ filename, content, isGenerating }) {
         </div>
     )
 }
-
-export default CodeEditor
