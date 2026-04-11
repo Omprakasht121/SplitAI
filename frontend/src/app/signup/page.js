@@ -9,11 +9,20 @@ export default function SignupPage() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
+    const [error, setError] = useState('')
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault()
-        // For now, just redirect to workspace
-        window.location.href = '/dashboard'
+        setError('')
+        try {
+            const { register } = await import('@/lib/api')
+            const data = await register(name, email, password)
+            localStorage.setItem('token', data.access_token)
+            localStorage.setItem('user', JSON.stringify({ name: data.user_name, email: data.user_email }))
+            window.location.href = '/dashboard'
+        } catch (err) {
+            setError(err.message)
+        }
     }
 
     return (
@@ -27,7 +36,7 @@ export default function SignupPage() {
                     <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/30">
                         <span className="text-xl">⚡</span>
                     </div>
-                    <span className="font-bold text-2xl text-white">VoiceBuild AI</span>
+                    <span className="font-bold text-2xl text-white">Split AI</span>
                 </Link>
 
                 {/* Card */}
@@ -36,6 +45,7 @@ export default function SignupPage() {
                     <p className="text-gray-400 text-center mb-8">Start building websites with just your voice</p>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
+                        {error && <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm text-center">{error}</div>}
                         {/* Name */}
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>

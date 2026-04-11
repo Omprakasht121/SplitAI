@@ -57,19 +57,19 @@ export default function CodeShowcase() {
                             {/* Editor Content */}
                             <div className="p-6 font-mono text-sm leading-relaxed overflow-x-auto">
                                 <div className="space-y-1">
-                                    <div className="text-purple-400">import <span className="text-yellow-200">React</span> from <span className="text-green-300">'react'</span>;</div>
+                                    <div className="text-purple-400">import <span className="text-yellow-200">React</span> from <span className="text-green-300">&apos;react&apos;</span>;</div>
                                     <div className="text-transparent">.</div>
                                     <div className="text-purple-400">export default <span className="text-blue-400">function</span> <span className="text-yellow-200">Hero</span>() {'{'}</div>
                                     <div className="text-purple-400 pl-4">return (</div>
                                     <div className="pl-8 text-gray-300">
-                                        &lt;<span className="text-red-400">div</span> <span className="text-orange-300">className</span>=<span className="text-green-300">"bg-slate-900 min-h-screen flex items-center"</span>&gt;
+                                        &lt;<span className="text-red-400">div</span> <span className="text-orange-300">className</span>=<span className="text-green-300">&quot;bg-slate-900 min-h-screen flex items-center&quot;</span>&gt;
                                     </div>
                                     <div className="pl-12 text-gray-300">
-                                        &lt;<span className="text-red-400">h1</span> <span className="text-orange-300">className</span>=<span className="text-green-300">"text-6xl font-bold text-white"</span>&gt;
+                                        &lt;<span className="text-red-400">h1</span> <span className="text-orange-300">className</span>=<span className="text-green-300">&quot;text-6xl font-bold text-white&quot;</span>&gt;
                                     </div>
                                     <div className="pl-16 text-white">
                                         Built with <br />
-                                        &lt;<span className="text-red-400">span</span> <span className="text-orange-300">className</span>=<span className="text-green-300">"text-blue-500"</span>&gt;Voice&lt;/<span className="text-red-400">span</span>&gt;
+                                        &lt;<span className="text-red-400">span</span> <span className="text-orange-300">className</span>=<span className="text-green-300">&quot;text-blue-500&quot;</span>&gt;Voice&lt;/<span className="text-red-400">span</span>&gt;
                                     </div>
                                     <div className="pl-12 text-gray-300">
                                         &lt;/<span className="text-red-400">h1</span>&gt;

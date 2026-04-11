@@ -11,7 +11,7 @@ export default function Navbar() {
                     <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/20">
                         <span className="text-xl leading-none">⚡</span>
                     </div>
-                    <span className="font-bold text-lg tracking-tight">VoiceBuild AI</span>
+                    <span className="font-bold text-lg tracking-tight">Split AI</span>
                 </Link>
 
                 {/* Links */}

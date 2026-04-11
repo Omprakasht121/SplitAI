@@ -4,10 +4,39 @@ Generates static website code based on voice transcript
 Uses STUBBED logic for MVP - always generates index.html and style.css
 """
 
-import asyncio
-from pathlib import Path
-from typing import AsyncGenerator, Dict, Any
 
+import asyncio
+import json
+import os
+from pathlib import Path
+from typing import AsyncGenerator, Dict, Any, Optional
+
+import sys
+# Ensure backend directory is in path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+try:
+    from ai.llm_client import LLMClient
+    from ai.prompts import Prompts
+except ImportError as e:
+    print(f"Import Error: {e}")
+    # Fallback/Retry logic
+    try:
+        from backend.ai.llm_client import LLMClient
+        from backend.ai.prompts import Prompts
+    except ImportError:
+         # Relative import fallback
+        from ..ai.llm_client import LLMClient
+        from ..ai.prompts import Prompts
+
+
+
+import logging
+import os
+
+# Configure logging
+log_path = Path(__file__).parent.parent / "debug.log"
+logging.basicConfig(filename=str(log_path), level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class MVPGenerator:
     """
@@ -15,8 +44,19 @@ class MVPGenerator:
     Parses voice transcript and generates appropriate website code
     """
     
+    
     def __init__(self):
+        logging.info("Initializing MVPGenerator")
         self.templates = self._load_templates()
+        try:
+            self.llm_client = LLMClient()
+            self.use_llm = True
+            logging.info("LLMClient initialized successfully")
+        except Exception as e:
+            print(f"Warning: LLM Client initialization failed: {e}")
+            logging.error(f"LLM Client initialization failed: {e}")
+            self.use_llm = False
+
     
     def _load_templates(self) -> Dict[str, Dict[str, str]]:
         """Load website templates for different types"""
@@ -65,12 +105,12 @@ class MVPGenerator:
             "description": f"Discover what makes {topic} special.",
         }
     
-    async def generate(self, transcript: str, output_dir: Path) -> AsyncGenerator[Dict[str, Any], None]:
+    async def generate(self, transcript: str, output_dir: Path, image_base64: Optional[str] = None) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Generate website files based on transcript
         Yields events for SSE streaming
         """
-        # Detect website type
+        # Detect website type for fallback/status
         website_type = self._detect_website_type(transcript)
         context = self._extract_context(transcript)
         
@@ -80,24 +120,48 @@ class MVPGenerator:
         }
         await asyncio.sleep(0.3)
         
-        # Get template
-        template = self.templates.get(website_type, self.templates["default"])
+        html_content = ""
+        css_content = ""
+        
+        # Try LLM Generation natively via token streams
+        if self.use_llm:
+            try:
+                yield {"type": "status", "message": "Consulting AI architect..."}
+                prompt = Prompts.generate_website_prompt(transcript)
+                has_yielded = False
+                async for event in self._stream_delimited_files(prompt, output_dir, temperature=1.0, image_base64=image_base64):
+                    if event["type"] in ["file_start", "code_chunk", "file_complete"]:
+                        has_yielded = True
+                    yield event
+                
+                if has_yielded:
+                    yield {"type": "status", "message": "Generation complete!"}
+                    return
+            except Exception as e:
+                print(f"LLM Generation stream failed: {e}")
+                # Fallback to templates will happen below
+                yield {"type": "status", "message": "AI stream failed, using templates..."}
+        
+        # Fallback to Templates if LLM failed or disabled
+        if not html_content or not css_content:
+            template = self.templates.get(website_type, self.templates["default"])
+            html_content = template["html"].format(**context)
+            css_content = template["css"]
         
         # Generate index.html
         yield {"type": "status", "message": "Generating HTML structure..."}
         await asyncio.sleep(0.2)
         
-        html_content = template["html"].format(**context)
         yield {"type": "file_start", "filename": "index.html"}
         
         # Stream HTML line by line
-        for line in html_content.split('\n'):
+        for i, line in enumerate(html_content.split('\n')):
             yield {
                 "type": "code_chunk",
                 "filename": "index.html",
                 "content": line + '\n'
             }
-            await asyncio.sleep(0.03)  # Typing effect delay
+            if i % 10 == 0: await asyncio.sleep(0)
         
         # Save file to disk
         (output_dir / "index.html").write_text(html_content, encoding="utf-8")
@@ -107,23 +171,248 @@ class MVPGenerator:
         yield {"type": "status", "message": "Generating styles..."}
         await asyncio.sleep(0.2)
         
-        css_content = template["css"]
         yield {"type": "file_start", "filename": "style.css"}
         
         # Stream CSS line by line
-        for line in css_content.split('\n'):
+        for i, line in enumerate(css_content.split('\n')):
             yield {
                 "type": "code_chunk",
                 "filename": "style.css",
                 "content": line + '\n'
             }
-            await asyncio.sleep(0.02)
+            if i % 10 == 0: await asyncio.sleep(0)
         
         # Save file to disk
         (output_dir / "style.css").write_text(css_content, encoding="utf-8")
         yield {"type": "file_complete", "filename": "style.css"}
         
         yield {"type": "status", "message": "Generation complete!"}
+
+    async def _stream_delimited_files(self, prompt: str, output_dir: Path, temperature: float = 1.0, image_base64: Optional[str] = None) -> AsyncGenerator[Dict[str, Any], None]:
+        import re
+        file_marker_pattern = re.compile(r'---FILE:\s*([a-zA-Z0-9_\-\.]+)\s*---')
+        
+        current_file = None
+        current_file_content = ""
+        buffer = ""
+        
+        stream = self.llm_client.stream_response(prompt, temperature=temperature, image_base64=image_base64)
+        
+        async for chunk in stream:
+            buffer += chunk
+            while '\n' in buffer:
+                line, buffer = buffer.split('\n', 1)
+                match = file_marker_pattern.search(line)
+                if match:
+                    if current_file:
+                        file_path = output_dir / current_file
+                        file_path.parent.mkdir(parents=True, exist_ok=True)
+                        file_path.write_text(current_file_content, encoding="utf-8")
+                        yield {"type": "file_complete", "filename": current_file}
+                    current_file = match.group(1).strip()
+                    current_file_content = ""
+                    yield {"type": "status", "message": f"Generating {current_file}..."}
+                    yield {"type": "file_start", "filename": current_file}
+                    after_marker = line[match.end():]
+                    if after_marker.strip():
+                        current_file_content += after_marker + "\n"
+                        yield {"type": "code_chunk", "filename": current_file, "content": after_marker + "\n"}
+                else:
+                    if current_file:
+                        line_with_newline = line + "\n"
+                        current_file_content += line_with_newline
+                        yield {"type": "code_chunk", "filename": current_file, "content": line_with_newline}
+                        
+        if buffer and current_file:
+            current_file_content += buffer
+            yield {"type": "code_chunk", "filename": current_file, "content": buffer}
+        if current_file:
+            file_path = output_dir / current_file
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.write_text(current_file_content, encoding="utf-8")
+            yield {"type": "file_complete", "filename": current_file}
+
+    async def create_plan(self, transcript: str, image_base64: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Stage 1: Create a plan based on transcript
+        """
+        # Detect website type for fallback
+        website_type = self._detect_website_type(transcript)
+        
+        if self.use_llm:
+            try:
+                prompt = Prompts.generate_plan_prompt(transcript)
+                response_text = await self.llm_client.generate_response(prompt, temperature=1.0, image_base64=image_base64)
+                
+                clean_response = response_text.replace("```json", "").replace("```", "").strip()
+                plan = json.loads(clean_response)
+                # Ensure plan has required fields
+                if "tasks" not in plan: plan["tasks"] = ["Generate website"]
+                if "files" not in plan: plan["files"] = []
+                plan["original_request"] = transcript
+                logging.info(f"Plan generated successfully: {plan}")
+                return plan
+            except Exception as e:
+                print(f"Plan generation failed with primary model: {e}")
+                logging.error(f"Plan generation failed: {e}")
+                
+                # RETRY ONCE with a different model if possible (handled by LLMClient, but we can force a re-attempt here if needed)
+                # LLMClient already tries all models. If it failed here, ALL models failed.
+                pass
+        
+        # Fallback Plan
+        print("!! WARNING: Entering Layout Fallback Mode (Quota Exceeded) !!")
+        return {
+            "type": website_type,
+            "fallback_mode": "true", # Marker for UI/Logic to know 
+            "original_request": transcript,
+            "tasks": [
+                f"Create {website_type} website structure",
+                "Implement responsive design",
+                "Add content sections"
+            ],
+            "files": [
+                {"name": "index.html", "description": "Main page"},
+                {"name": "style.css", "description": "Styles"}
+            ]
+        }
+
+    async def _stream_file_content(self, filename: str, description: str, plan: Dict[str, Any], image_base64: Optional[str] = None) -> AsyncGenerator[str, None]:
+        """Helper to stream content for a single file using LLM"""
+        if self.use_llm:
+            try:
+                import re
+                prompt = Prompts.generate_single_file_prompt(filename, description, plan)
+                stream = self.llm_client.stream_response(prompt, temperature=0.7, image_base64=image_base64)
+                
+                buffer = ""
+                file_marker_pattern = re.compile(r'[-]+?\s*file:\s*?[a-zA-Z0-9_\-\.]+\s*[-]+?', re.IGNORECASE)
+                md_block_pattern = re.compile(r'^```[a-zA-Z]*\s*$')
+
+                async for chunk in stream:
+                    buffer += chunk
+                    while '\n' in buffer:
+                        line, buffer = buffer.split('\n', 1)
+                        clean_line = line.strip()
+                        # Skip if line is a file marker or exactly ``` or ```html etc
+                        if file_marker_pattern.match(clean_line) or md_block_pattern.match(clean_line) or clean_line == "```":
+                            continue
+                        yield line + '\n'
+                
+                if buffer:
+                    clean_buf = buffer.strip()
+                    if not (file_marker_pattern.match(clean_buf) or md_block_pattern.match(clean_buf) or clean_buf == "```"):
+                        yield buffer
+
+            except Exception as e:
+                logging.error(f"Failed to stream {filename}: {e}")
+
+    async def execute_plan(self, plan: Dict[str, Any], output_dir: Path, image_base64: Optional[str] = None) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Stage 2: Execute the plan to generate code for ALL files
+        Parallelized version
+        """
+        import time
+        start_time = time.time()
+        
+        yield {"type": "status", "message": "Executing plan (Parallel Mode)..."}
+        
+        files_to_generate = plan.get("files", [])
+        
+        # Fallback if no files in plan
+        if not files_to_generate:
+            files_to_generate = [
+                {"name": "index.html", "description": "Main page"},
+                {"name": "style.css", "description": "Styles"}
+            ]
+
+        # Start stream logic
+        yield {"type": "status", "message": f"Generating {len(files_to_generate)} files with live auto-streaming..."}
+        
+        file_stats = []
+        for file_info in files_to_generate:
+            filename = file_info.get("name")
+            description = file_info.get("description", "No description")
+            if not filename: continue
+            
+            t_start = time.time()
+            yield {"type": "file_start", "filename": filename}
+            
+            file_content = ""
+            async for chunk in self._stream_file_content(filename, description, plan, image_base64=image_base64):
+                file_content += chunk
+                yield {"type": "code_chunk", "filename": filename, "content": chunk}
+            
+            # Fallback to Templates if content is empty (and LLM failed or was disabled)
+            if not file_content and (filename == "index.html" or filename == "style.css"):
+                website_type = plan.get("type", "default")
+                context = self._extract_context(plan.get("original_request", ""))
+                template = self.templates.get(website_type, self.templates["default"])
+                if filename == "index.html":
+                    file_content = template["html"].format(**context)
+                else:
+                    file_content = template["css"]
+                # fake stream the fallback
+                for i, line in enumerate(file_content.split('\n')):
+                    yield {"type": "code_chunk", "filename": filename, "content": line + '\n'}
+                    if i % 10 == 0: await asyncio.sleep(0) 
+            
+            if not file_content:
+                file_content = f"/* Content for {filename} could not be generated */"
+                yield {"type": "code_chunk", "filename": filename, "content": file_content}
+                
+            # Make sure directory exists for this file
+            file_path = output_dir / filename
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            file_path.write_text(file_content, encoding="utf-8")
+            yield {"type": "file_complete", "filename": filename}
+            
+            duration = time.time() - t_start
+            file_stats.append(f"{filename}: {duration:.2f}s")
+            
+        total_duration = time.time() - start_time
+        yield {"type": "status", "message": f"Plan executed successfully in {total_duration:.2f}s!"}
+        
+        # Log performance
+        try:
+            log_entry = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Total: {total_duration:.2f}s | Files: {len(files_to_generate)} | Details: {', '.join(file_stats)}\n"
+            log_path = Path(__file__).resolve().parent.parent / "generation_performance.log"
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(log_entry)
+        except Exception as e:
+            print(f"Failed to log performance: {e}")
+
+    async def edit_project(self, current_files: Dict[str, str], instruction: str, output_dir: Path, image_base64: Optional[str] = None) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Edit existing project files based on user instruction
+        Yields events for SSE streaming
+        """
+        yield {"type": "status", "message": "Analyzing request..."}
+        
+        html_content = current_files.get("index.html", "")
+        css_content = current_files.get("style.css", "")
+        
+        # Try LLM Editing token by token
+        if self.use_llm:
+            try:
+                yield {"type": "status", "message": "Applying changes linearly..."}
+                prompt = Prompts.generate_edit_prompt(current_files, instruction)
+                
+                has_yielded = False
+                async for event in self._stream_delimited_files(prompt, output_dir, temperature=0.7, image_base64=image_base64):
+                    has_yielded = True
+                    yield event
+                    
+                if not has_yielded:
+                    raise ValueError("Stream generated no output")
+                
+            except Exception as e:
+                print(f"Edit failed: {e}")
+                logging.error(f"Edit failed: {e}")
+                yield {"type": "error", "message": str(e)}
+
+        yield {"type": "status", "message": "Update complete!"}
     
     def _get_marketing_template(self) -> Dict[str, str]:
         """Marketing website template"""
