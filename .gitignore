@@ -15,6 +15,20 @@ build/
 .venv/
 venv/
 env/
+backend/.env
+
+# Databases
+backend/*.db
+backend/*.db-journal
+backend/*.sqlite3
+*.db
+*.sqlite3
+
+# Logs
+backend/access_log.txt
+backend/debug.log
+backend/generation_performance.log
+*.log
 
 # IDE
 .vscode/

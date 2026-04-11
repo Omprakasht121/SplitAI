@@ -9,7 +9,13 @@ from db import crud, models, database
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-SECRET_KEY = os.getenv("JWT_SECRET", "super-secret-key-split-ai-2026")
+SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY:
+    # In production, this should cause an application crash or at least a severe warning.
+    # For now, we use a development-only placeholder to prevent unintended access.
+    SECRET_KEY = "dev-mode-insecure-secret-key-replace-in-production"
+    import logging
+    logging.warning("JWT_SECRET not found in environment. Using INSECURE development key.")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
 

@@ -12,9 +12,12 @@ except ImportError as e:
     print(f"Import Error: {e}")
     sys.exit(1)
 
-# Hardcoded key from .env check
-API_KEY = "AIzaSyAZey3dvYfBDOy0Pj2cDx--ipIAIZWVreE"
-os.environ["GEMINI_API_KEY"] = API_KEY
+# Rely on .env or environment variable
+API_KEY = os.getenv("GEMINI_API_KEY")
+
+if not API_KEY:
+    print("❌ Error: GEMINI_API_KEY not found in environment.")
+    sys.exit(1)
 
 async def test():
     print("Testing Backend with Hardcoded Key...")
