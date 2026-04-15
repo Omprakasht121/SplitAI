@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { 
     generateWebsite, launchPreview, generatePlan, editProject, 
-    createProject, saveFile 
+    createProject, saveFile, API_BASE_URL 
 } from '@/lib/api'
 import PlanEditor from '@/components/PlanEditor'
 
@@ -726,7 +726,7 @@ function WorkspaceContent() {
             
             setStatusMessage('Preparing ZIP...')
             const link = document.createElement('a')
-            link.href = `http://127.0.0.1:8000/api/projects/${currentId}/download`
+            link.href = `${API_BASE_URL}/api/projects/${currentId}/download`
             link.download = `${projectName.replace(/\s+/g, '_')}.zip`
             document.body.appendChild(link)
             link.click()
