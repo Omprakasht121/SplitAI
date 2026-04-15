@@ -4,7 +4,7 @@
  * Handles communication with the FastAPI backend
  */
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000'; // Bypass Next.js rewrites proxy to prevent SSE buffering
+export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, ''); // Bypass Next.js rewrites proxy to prevent SSE buffering
 
 const getAuthHeaders = () => {
     const token = localStorage.getItem('token');

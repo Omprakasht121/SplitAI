@@ -33,11 +33,18 @@ app.include_router(auth.router)
 app.include_router(projects.router)
 
 # Configure CORS for frontend communication
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+if raw_origins == "*":
+    allowed_origins = ["*"]
+    allow_credentials = False
+else:
+    allowed_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+    allow_credentials = True
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=True,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
