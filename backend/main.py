@@ -16,6 +16,7 @@ from preview.server import PreviewServer
 from dotenv import load_dotenv
 from db import models, database
 from routers import auth, projects
+from fastapi.staticfiles import StaticFiles
 
 load_dotenv()
 
@@ -67,6 +68,9 @@ preview_server = PreviewServer()
 # Output directory for generated files
 OUTPUT_DIR = Path(__file__).parent / "generated_output"
 OUTPUT_DIR.mkdir(exist_ok=True)
+
+# Mount static files for cloud preview
+app.mount("/preview", StaticFiles(directory=OUTPUT_DIR, html=True), name="preview")
 
 
 @app.get("/")
@@ -268,13 +272,15 @@ async def edit_website(request: Request):
 
 
 @app.post("/api/preview/launch")
-async def launch_preview():
+async def launch_preview(request: Request):
     """
-    Launch preview server for generated website
-    Returns the preview URL
+    Returns the cloud-friendly preview URL
     """
     try:
-        url = await preview_server.start(OUTPUT_DIR)
+        # Get the base URL of the current request (works on localhost and Render)
+        base_url = str(request.base_url).rstrip("/")
+        # Point to the static route we just mounted
+        url = f"{base_url}/preview/index.html"
         return {"url": url, "status": "launched"}
     except Exception as e:
         return JSONResponse(
